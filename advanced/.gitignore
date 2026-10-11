@@ -1,0 +1,25 @@
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Environments
+env/
+venv/
+.venv/
+
+# Session & run artifacts
+*.log
+*.pid
+server_stats.json
+client_stats.json
+attack_stats.json
+alerts.json
+evaluation_metrics.csv
+evaluation_summary.md
+
+# Mininet / OVS artifacts
+*.pcap
+*.out
