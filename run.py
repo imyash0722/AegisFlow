@@ -122,8 +122,8 @@ class SDNIntrusionController:
 # ==============================================================================
 def run_demonstration():
     print(f"\n{CYAN}{BOLD}===================================================================={RESET}")
-    print(f"{CYAN}{BOLD}  PROJECT 25: NETWORK INTRUSION DETECTION & DYNAMIC SDN RESPONSE    {RESET}")
-    print(f"{CYAN}{BOLD}  Automated Working Verification                                    {RESET}")
+    print(f"{CYAN}{BOLD}  AegisFlow: NETWORK INTRUSION DETECTION & DYNAMIC SDN DEFENSE       {RESET}")
+    print(f"{CYAN}{BOLD}  Project #25 · Automated Working Verification                      {RESET}")
     print(f"{CYAN}{BOLD}===================================================================={RESET}\n")
 
     # Step 1: Initialize System Infrastructure
@@ -216,7 +216,7 @@ def run_demonstration():
     print(f"  {'SDN Response / FlowMod Time':<35} | {controller.response_latency_ms:.3f} ms")
     print(f"  {'Switch Datapath Offload':<35} | Verified in OpenFlow Table")
     print(f"{CYAN}{BOLD}===================================================================={RESET}")
-    print(f"{GREEN}{BOLD}  [✓] PROJECT 25 VERIFICATION COMPLETED SUCCESSFULLY!{RESET}\n")
+    print(f"{GREEN}{BOLD}  [✓] AegisFlow VERIFICATION COMPLETED SUCCESSFULLY!{RESET}\n")
 
     server.stop()
 
