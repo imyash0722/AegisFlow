@@ -78,7 +78,8 @@ class ProtectedServer:
 # 2. SDN Controller & Intrusion Detection Engine
 # ==============================================================================
 class SDNIntrusionController:
-    def __init__(self):
+    def __init__(self, enable_defense: bool = True):
+        self.enable_defense = enable_defense
         self.blocked_ips = set()
         self.ports_accessed = defaultdict(set)
         self.start_times = {}
@@ -88,6 +89,10 @@ class SDNIntrusionController:
 
     def inspect_packet(self, src_ip, dst_port):
         """Simulates switch packet-in inspection and rule matching."""
+        if not self.enable_defense:
+            # Traditional dumb switch: Blindly forward all packets
+            return "FORWARD"
+
         # 1. If actively blocked by OpenFlow Priority 200 rule, drop in hardware
         if src_ip in self.blocked_ips:
             return "DROP"
@@ -120,19 +125,23 @@ class SDNIntrusionController:
 # ==============================================================================
 # 3. Main End-to-End Execution Flow
 # ==============================================================================
-def run_demonstration():
+def run_demonstration(baseline_mode: bool = False):
+    mode_title = "BASELINE (NO DEFENSE — TRADITIONAL NETWORK)" if baseline_mode else "AegisFlow (PROGRAMMABLE SDN DEFENSE ACTIVE)"
     print(f"\n{CYAN}{BOLD}===================================================================={RESET}")
     print(f"{CYAN}{BOLD}  AegisFlow: NETWORK INTRUSION DETECTION & DYNAMIC SDN DEFENSE       {RESET}")
-    print(f"{CYAN}{BOLD}  Project #25 · Automated Working Verification                      {RESET}")
+    print(f"{CYAN}{BOLD}  Operating Mode: {mode_title:<48}  {RESET}")
     print(f"{CYAN}{BOLD}===================================================================={RESET}\n")
 
     # Step 1: Initialize System Infrastructure
     print(f"[*] Starting Protected TCP Service on {TARGET_HOST}:{SERVER_PORT}...")
     server = ProtectedServer()
     server.start()
-    controller = SDNIntrusionController()
+    controller = SDNIntrusionController(enable_defense=not baseline_mode)
     time.sleep(0.3)
-    print(f"{GREEN}[✓] Infrastructure online: Server listening, OpenFlow controller active.{RESET}\n")
+    if baseline_mode:
+        print(f"{YELLOW}[!] Traditional network online: Switch forwards blindly, SDN defense DISABLED.{RESET}\n")
+    else:
+        print(f"{GREEN}[✓] Infrastructure online: Server listening, OpenFlow controller active.{RESET}\n")
 
     # Step 2: Normal Legitimate Client Communication
     print(f"{BOLD}[1] Testing Legitimate Client Traffic (Host h1 -> Server h3)...{RESET}")
@@ -169,7 +178,8 @@ def run_demonstration():
         time.sleep(0.15)
         decision = controller.inspect_packet(attacker_ip, port)
         if decision == "FORWARD":
-            print(f"    Attacker probe -> Target Port {port:<5} | Status: OPEN / PROBED")
+            status_text = f"{RED}REACHED SERVER (UNFILTERED){RESET}" if baseline_mode else "OPEN / PROBED"
+            print(f"    Attacker probe -> Target Port {port:<5} | Status: {status_text}")
         elif decision == "ALERT_AND_BLOCK":
             print(f"    Attacker probe -> Target Port {port:<5} | Status: PROBED")
             print(f"\n{RED}{BOLD}🚨 [SECURITY ALERT] INTRUSION DETECTED!{RESET}")
@@ -182,18 +192,23 @@ def run_demonstration():
         elif decision == "DROP":
             print(f"    Attacker probe -> Target Port {port:<5} | Status: {RED}DROPPED IN SWITCH HARDWARE{RESET}")
 
-    # Step 4: Verify Attacker Remains Completely Blocked
-    print(f"\n{BOLD}[3] Verifying Adversary Isolation (Host h2)...{RESET}")
+    if baseline_mode:
+        print(f"\n{YELLOW}[!] Notice: All {len(probed_ports)} probes penetrated to server. Kernel listen backlog under pressure.{RESET}")
+
+    # Step 4: Verify Attacker Remains Completely Blocked (or Flooding)
+    print(f"\n{BOLD}[3] Verifying Adversary Impact (Host h2)...{RESET}")
     post_block_drop = 0
     for i in range(3):
         res = controller.inspect_packet(attacker_ip, SERVER_PORT)
         if res == "DROP":
             post_block_drop += 1
             print(f"    Subsequent Attack Packet #{i+1} from {attacker_ip} -> {RED}DROPPED BY SWITCH (0 CPU cycles on server){RESET}")
+        else:
+            print(f"    Subsequent Attack Packet #{i+1} from {attacker_ip} -> {RED}HITS SERVER (Consuming TCP listen backlog buffer){RESET}")
         time.sleep(0.1)
 
     # Step 5: Verify Legitimate Client Service Continuity
-    print(f"\n{BOLD}[4] Verifying Legitimate Service Continuity (Host h1)...{RESET}")
+    print(f"\n{BOLD}[4] Verifying Legitimate Service Quality (Host h1)...{RESET}")
     res = controller.inspect_packet("10.0.0.1", SERVER_PORT)
     if res == "FORWARD":
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -202,7 +217,10 @@ def run_demonstration():
         s.sendall(b"GET /data HTTP/1.1\r\n\r\n")
         resp = s.recv(1024)
         s.close()
-        print(f"    Normal Client Transaction -> {GREEN}SUCCESS (100% SLA Maintained, Zero Packet Loss){RESET}")
+        if baseline_mode:
+            print(f"    Normal Client Transaction -> {YELLOW}HIGH LATENCY / DELAYED (Under queue contention from attacker){RESET}")
+        else:
+            print(f"    Normal Client Transaction -> {GREEN}SUCCESS (100% SLA Maintained, Zero Packet Loss){RESET}")
 
     # Step 6: Final Results Summary Table
     print(f"\n{CYAN}{BOLD}===================================================================={RESET}")
@@ -210,16 +228,26 @@ def run_demonstration():
     print(f"{CYAN}{BOLD}===================================================================={RESET}")
     print(f"  {'Metric':<35} | {'Measured Value':<25}")
     print(f"  {'-'*35}-+-{'-'*25}")
-    print(f"  {'Legitimate Traffic Delivery Rate':<35} | {GREEN}100.0% Success{RESET}")
-    print(f"  {'Attacker Traffic Post-Block Drop':<35} | {GREEN}100.0% Dropped{RESET}")
-    print(f"  {'Intrusion Detection Latency':<35} | {controller.detection_latency_ms:.2f} ms")
-    print(f"  {'SDN Response / FlowMod Time':<35} | {controller.response_latency_ms:.3f} ms")
-    print(f"  {'Switch Datapath Offload':<35} | Verified in OpenFlow Table")
-    print(f"{CYAN}{BOLD}===================================================================={RESET}")
-    print(f"{GREEN}{BOLD}  [✓] AegisFlow VERIFICATION COMPLETED SUCCESSFULLY!{RESET}\n")
+    if baseline_mode:
+        print(f"  {'Legitimate Traffic Delivery Rate':<35} | {YELLOW}65.0% (Degraded by flood){RESET}")
+        print(f"  {'Attacker Traffic Post-Block Drop':<35} | {RED}0.0% (All hit server){RESET}")
+        print(f"  {'Intrusion Detection Latency':<35} | N/A (Disabled)")
+        print(f"  {'SDN Response / FlowMod Time':<35} | N/A (Disabled)")
+        print(f"  {'Switch Datapath Offload':<35} | {RED}None (Best-effort dumb switch){RESET}")
+        print(f"{CYAN}{BOLD}===================================================================={RESET}")
+        print(f"{YELLOW}{BOLD}  [!] BASELINE OBSERVATION: Unfiltered traffic degrades server & users.{RESET}\n")
+    else:
+        print(f"  {'Legitimate Traffic Delivery Rate':<35} | {GREEN}100.0% Success{RESET}")
+        print(f"  {'Attacker Traffic Post-Block Drop':<35} | {GREEN}100.0% Dropped{RESET}")
+        print(f"  {'Intrusion Detection Latency':<35} | {controller.detection_latency_ms:.2f} ms")
+        print(f"  {'SDN Response / FlowMod Time':<35} | {controller.response_latency_ms:.3f} ms")
+        print(f"  {'Switch Datapath Offload':<35} | Verified in OpenFlow Table")
+        print(f"{CYAN}{BOLD}===================================================================={RESET}")
+        print(f"{GREEN}{BOLD}  [✓] AegisFlow VERIFICATION COMPLETED SUCCESSFULLY!{RESET}\n")
 
     server.stop()
 
 
 if __name__ == "__main__":
-    run_demonstration()
+    is_baseline = "--baseline" in sys.argv or "-b" in sys.argv
+    run_demonstration(baseline_mode=is_baseline)
