@@ -21,8 +21,10 @@ except ImportError:
 
 
 # Intrusion Detection Thresholds
-PORT_SCAN_THRESHOLD = 5    # Max distinct ports allowed
-CONN_RATE_THRESHOLD = 10   # Max connections allowed per second
+PORT_SCAN_THRESHOLD = 5    # Max distinct destination ports allowed (Vertical Scan)
+CONN_RATE_THRESHOLD = 10   # Max connections allowed per second (DoS Flood)
+SUBNET_SWEEP_THRESHOLD = 3 # Max distinct destination IPs allowed (Horizontal Sweep)
+SYN_BURST_THRESHOLD = 15   # Max half-open / SYN bursts allowed per second
 
 
 class SimpleIDSController(app_manager.RyuApp):
@@ -34,7 +36,9 @@ class SimpleIDSController(app_manager.RyuApp):
             super().__init__(*args, **kwargs)
         self.mac_to_port = {}
         self.ports_accessed = defaultdict(set)      # ip -> set of dst_ports
+        self.dest_ips_accessed = defaultdict(set)   # ip -> set of dst_ips
         self.connection_times = defaultdict(list)   # ip -> list of timestamps
+        self.syn_burst_times = defaultdict(list)    # ip -> list of SYN timestamps
         self.blocked_ips = set()
         self.start_times = {}                       # ip -> first suspicious activity time
         print("[*] Simple IDS Controller initialized.")
@@ -105,6 +109,7 @@ class SimpleIDSController(app_manager.RyuApp):
         # Intrusion Detection Analysis for TCP
         if ip_pkt and tcp_pkt:
             src_ip = ip_pkt.src
+            dst_ip = ip_pkt.dst
             dst_port = tcp_pkt.dst_port
 
             if src_ip in self.blocked_ips:
@@ -115,19 +120,35 @@ class SimpleIDSController(app_manager.RyuApp):
 
             now = time.time()
             self.ports_accessed[src_ip].add(dst_port)
+            self.dest_ips_accessed[src_ip].add(dst_ip)
             self.connection_times[src_ip].append(now)
+
+            # Check if this is a SYN packet (TCP SYN flag = 0x02)
+            if hasattr(tcp_pkt, 'bits') and (tcp_pkt.bits & 0x02):
+                self.syn_burst_times[src_ip].append(now)
 
             # Keep only timestamps within last 1 second
             self.connection_times[src_ip] = [t for t in self.connection_times[src_ip] if t >= now - 1.0]
+            self.syn_burst_times[src_ip] = [t for t in self.syn_burst_times[src_ip] if t >= now - 1.0]
 
-            # Rule 1: Port Scanning Check
+            # Rule 1: Vertical Port Scanning Check (Distinct ports >= 5 in 10s)
             if len(self.ports_accessed[src_ip]) >= PORT_SCAN_THRESHOLD:
-                self.block_attacker(datapath, src_ip, f"Port Scan (>={PORT_SCAN_THRESHOLD} ports)")
+                self.block_attacker(datapath, src_ip, f"Vertical Port Scan (>={PORT_SCAN_THRESHOLD} ports)")
                 return
 
-            # Rule 2: Connection Rate Check
+            # Rule 2: Connection Rate Check (Connections/sec >= 10)
             if len(self.connection_times[src_ip]) >= CONN_RATE_THRESHOLD:
                 self.block_attacker(datapath, src_ip, f"High Connection Rate (>={CONN_RATE_THRESHOLD}/s)")
+                return
+
+            # Rule 3: Horizontal Subnet Sweep (Distinct destination IPs >= 3 in 10s)
+            if len(self.dest_ips_accessed[src_ip]) >= SUBNET_SWEEP_THRESHOLD:
+                self.block_attacker(datapath, src_ip, f"Horizontal Subnet Sweep (>={SUBNET_SWEEP_THRESHOLD} hosts)")
+                return
+
+            # Rule 4: TCP SYN Flood / Burst (SYN rate >= 15/s)
+            if len(self.syn_burst_times[src_ip]) >= SYN_BURST_THRESHOLD:
+                self.block_attacker(datapath, src_ip, f"TCP SYN Flood Burst (>={SYN_BURST_THRESHOLD} SYNs/s)")
                 return
 
         # Normal L2 Forwarding (Learning Switch)
