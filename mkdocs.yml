@@ -1,0 +1,61 @@
+site_name: AegisFlow — Programmable SDN Network Intrusion Detection & Defense
+site_description: Complete Architectural & Technical Explanation of Project 25 (AegisFlow)
+site_url: https://imyash0722.github.io/AegisFlow/
+repo_url: https://github.com/imyash0722/AegisFlow
+repo_name: AegisFlow GitHub
+
+theme:
+  name: zensical
+  language: en
+  palette:
+    # Light scheme
+    - scheme: default
+      primary: indigo
+      accent: indigo
+    # Dark scheme
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+
+  features:
+    - navigation.tabs           # Top horizontal navigation tabs
+    - navigation.sections       # Collapsible sidebar sections
+    - navigation.expand         # Auto-expand sections
+    - navigation.top            # Back to top button
+    - navigation.tracking       # URL updates with scroll position
+    - navigation.footer         # Next/Previous page footer links
+    - search.highlight          # Highlight query terms
+    - search.share              # Shareable search links
+    - content.code.copy         # Click-to-copy code blocks
+    - content.code.annotate     # Code annotations
+    - content.tabs.link         # Link tabs across pages
+    - toc.follow                # Auto-scrolling table of contents
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+
+nav:
+  - "Overview": index.md
+  - "System Architecture": architecture.md
+  - "Socket Layer (Data Plane)": sockets.md
+  - "Attack Measures": attack_measures.md
+  - "Sliding Window Engine": ids_engine.md
+  - "Evaluation & Benchmarks": benchmarks.md
+  - "Live Demo & Viva Guide": live_demo.md
+
+copyright: |
+  &copy; 2026 AegisFlow Project #25 — Computer Networks (UE25CS243A)
+  <br>
+  Built with <a href="https://github.com/zensical/zensical">Zensical</a> · PES University
